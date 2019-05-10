@@ -16,6 +16,7 @@ void ofApp::setup() {
    ship.lifespan = 60 * 60 * 1000;
    ship.velocity = ofVec3f(0, 0);
    ship.radius = 10;
+   ship.damping = 0.9995;
 
    sys->add(ship);
    sys->setLifespan(10000000);
@@ -47,6 +48,29 @@ void ofApp::setup() {
    cam2.lookAt(glm::vec3(0, 0, 0));
 
    // Sound
+   // Take Me Home, Country Roads
+   // Album: Fallout 76 (Original Trailer Soundtrack) by Copilot Music + Sound
+   string soundPath = "sounds/CountryRoads.mp3";
+   if (countryRoads.load(soundPath)) {
+      countryRoads.setLoop(true);
+      countryRoads.setVolume(0.8f);
+      countryRoads.play();
+   }
+   else {
+      ofLogFatalError("Can't load sound: " + soundPath);
+      ofExit();
+   }
+
+   soundPath = "sounds/sfx_vehicle_engineloop.wav";
+   if (thrusters.load(soundPath)) {
+      thrusters.setMultiPlay(false);
+      thrusters.setVolume(0.2f);
+      bThrust = false;
+   }
+   else {
+      ofLogFatalError("Can't load sound: " + soundPath);
+      ofExit();
+   }
 
    // GUI
    gui.setup();
@@ -60,6 +84,11 @@ void ofApp::setup() {
 void ofApp::update() {
    
    grav->set(ofVec3f(0, -gravity, 0));
+
+   // Play Thrusters
+   if (bThrust && !thrusters.isPlaying()) {
+      thrusters.play();
+   }
 
    sys->update();
    currentPos = sys->particles[0].position;
@@ -152,18 +181,23 @@ void ofApp::keyPressed(int key) {
    switch (key) {
    case OF_KEY_UP:
       moveForce->set(ofVec3f(0, 0, -move));
+      if (!bThrust) bThrust = true;
       break;
    case OF_KEY_DOWN:
       moveForce->set(ofVec3f(0, 0, move));
+      if (!bThrust) bThrust = true;
       break;
    case OF_KEY_LEFT:
       moveForce->set(ofVec3f(-move, 0));
+      if (!bThrust) bThrust = true;
       break;
    case OF_KEY_RIGHT:
       moveForce->set(ofVec3f(move, 0));
+      if (!bThrust) bThrust = true;
       break;
    case ' ':
       moveForce->set(ofVec3f(0, move, 0));
+      if (!bThrust) bThrust = true;
       break;
    case 'C':
    case 'c':
@@ -201,21 +235,31 @@ void ofApp::keyReleased(int key) {
    case OF_KEY_UP:
       moveForce->set(ofVec3f(0, 0));
       //sys->particles[0].velocity = ofVec3f(sys->particles[0].velocity.x, sys->particles[0].velocity.y, 0);
+      bThrust = false;
+      thrusters.stop();
       break;
    case OF_KEY_DOWN:
       moveForce->set(ofVec3f(0, 0));
       //sys->particles[0].velocity = ofVec3f(sys->particles[0].velocity.x, sys->particles[0].velocity.y, 0);
+      bThrust = false;
+      thrusters.stop();
       break;
    case OF_KEY_LEFT:
       moveForce->set(ofVec3f(0, 0));
       //sys->particles[0].velocity = ofVec3f(0, sys->particles[0].velocity.y, sys->particles[0].velocity.z);
+      bThrust = false;
+      thrusters.stop();
       break;
    case OF_KEY_RIGHT:
       moveForce->set(ofVec3f(0, 0));
       //sys->particles[0].velocity = ofVec3f(0, sys->particles[0].velocity.y, sys->particles[0].velocity.z);
+      bThrust = false;
+      thrusters.stop();
       break;
    case ' ':
       moveForce->set(ofVec3f(0, 0, 0));
+      bThrust = false;
+      thrusters.stop();
       break;
    default:
       break;

@@ -37,6 +37,10 @@ public:
    MovementForce *moveForce;
    Particle ship;
 
+   // Sounds
+   ofSoundPlayer countryRoads, thrusters;
+   bool bThrust;
+
    ofVec3f currentPos, box1Pos, box2Pos, oldPos, newPos;
    float box1Width, box1Height, box2Width, box2Height;
 
