@@ -2,8 +2,10 @@
 
 #include "ofMain.h"
 #include "ofxGui.h"
+#include "ofxAssimpModelLoader.h"
 #include "ParticleSystem.h"
 #include "Particle.h"
+#include "box.h"
 
 class ofApp : public ofBaseApp {
 
@@ -28,7 +30,7 @@ public:
 
    // Cameras
    ofEasyCam mainCam;
-   ofCamera cam1, cam2;
+   ofCamera landingCam, trackingCam, fixedCam;
    ofCamera *theCam;
 
    // Particle System
@@ -36,6 +38,14 @@ public:
    GravityForce *grav;
    MovementForce *moveForce;
    Particle ship;
+
+   // Models
+   ofxAssimpModelLoader tractor, cornField;
+   ofMesh cornMesh;
+   Box boundingBox;
+
+   // Lighting
+   ofLight sunLight;
 
    // Sounds
    ofSoundPlayer countryRoads, thrusters;
@@ -49,5 +59,4 @@ public:
    ofxFloatSlider gravity;
    ofxFloatSlider move;
    ofxPanel gui;
-
 };

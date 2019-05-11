@@ -1,4 +1,5 @@
 #include "ofApp.h"
+#include "Util.h"
 
 //--------------------------------------------------------------
 void ofApp::setup() {
@@ -9,13 +10,13 @@ void ofApp::setup() {
    grav = new GravityForce();
    moveForce = new MovementForce();
 
-   currentPos = glm::vec3(0, 50, 0);
+   currentPos = glm::vec3(0, 100, 0);
    oldPos = currentPos;
 
    ship.position = currentPos;
    ship.lifespan = 60 * 60 * 1000;
    ship.velocity = ofVec3f(0, 0);
-   ship.radius = 10;
+   ship.radius = 1;
    ship.damping = 0.9995;
 
    sys->add(ship);
@@ -24,7 +25,31 @@ void ofApp::setup() {
    sys->addForce(moveForce);
 
    // Models
+   string modelPath = "Tractor/Tractor.obj";
+   if (tractor.loadModel(modelPath)) {
+      tractor.setScaleNormalization(false);
+      ofVec3f min = tractor.getSceneMin() + tractor.getPosition();
+      ofVec3f max = tractor.getSceneMax() + tractor.getPosition();
 
+      // Create Bounding Box
+   }
+   else {
+      ofLogFatalError("Can't load model: " + modelPath);
+      ofExit();
+   }
+
+   modelPath = "cornMoon/cornMoon.obj";
+   //modelPath = "geo/mars-low.obj";
+   if (cornField.loadModel(modelPath)) {
+      cornField.setScaleNormalization(false);
+      cornField.setPosition(-100, 32, 80);
+      cornField.setScale(2, 1, 2);
+      cornMesh = cornField.getMesh(0);
+   }
+   else {
+      ofLogFatalError("Can't load model: " + modelPath);
+      ofExit();
+   }
 
    // Landing Fields
 
@@ -33,7 +58,7 @@ void ofApp::setup() {
 
 
    // Camera
-   mainCam.setDistance(30);
+   mainCam.setDistance(100);
    mainCam.setNearClip(10);
    mainCam.setFov(65.5);
    ofEnableSmoothing();
@@ -41,11 +66,14 @@ void ofApp::setup() {
 
    theCam = &mainCam;
 
-   cam1.setGlobalPosition(glm::vec3(100, 25, 0));
-   cam1.lookAt(glm::vec3(0, 0, 0));
+   trackingCam.setGlobalPosition(glm::vec3(100, 25, 0));
+   trackingCam.lookAt(glm::vec3(0, 0, 0));
 
-   cam2.setGlobalPosition(currentPos);
-   cam2.lookAt(glm::vec3(0, 0, 0));
+   landingCam.setGlobalPosition(currentPos);
+   landingCam.lookAt(glm::vec3(0, 0, 0));
+
+   fixedCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 50, currentPos.z + 50));
+   fixedCam.lookAt(currentPos);
 
    // Sound
    // Take Me Home, Country Roads
@@ -74,8 +102,8 @@ void ofApp::setup() {
 
    // GUI
    gui.setup();
-   gui.add(move.setup("Move Force", 30, 1, 100));
-   gui.add(gravity.setup("Gravity", 9, -20, 20));
+   gui.add(move.setup("Move Force", 10, 1, 100));
+   gui.add(gravity.setup("Gravity", 3, -20, 40));
    bHide = false;
    //	gui.add(camDistance.setup("Camera Distance", 20, 10, 50));
 }
@@ -94,19 +122,18 @@ void ofApp::update() {
    currentPos = sys->particles[0].position;
 
    // Set tractor's position to the particles position
+   tractor.setPosition(currentPos.x, currentPos.y, currentPos.z);
 
+   // Set fixedCam as a trailing cam
+   fixedCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 50, currentPos.z + 50));
+   fixedCam.lookAt(currentPos);
 
+   // Set trackingCam to follow the tractor from a fixed position
+   trackingCam.lookAt(currentPos);
 
-   // Set mainCam as a trailing cam
-   mainCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 50, currentPos.z + 50));
-   mainCam.lookAt(currentPos);
-
-   // Set cam1 to follow the tractor from a fixed position
-   cam1.lookAt(currentPos);
-
-   // Set cam2 to tractor's position looking down
-   cam2.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y - 10, currentPos.z));
-   cam2.lookAt(glm::vec3(currentPos.x, currentPos.y - 50, currentPos.z));
+   // Set landingCam to tractor's position looking down
+   landingCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y, currentPos.z));
+   landingCam.lookAt(glm::vec3(currentPos.x, currentPos.y - 50, currentPos.z));
 
    checkCollision();
    checkLanding();
@@ -119,23 +146,21 @@ void ofApp::draw() {
    ofEnableDepthTest();
    theCam->begin();
 
-   // draw simple box object
-   //
-   //ofNoFill();
-   //ofDrawBox(30);
-
-   //	ofPushMatrix();
-   //	ofTranslate(mainCam.getPosition());
-   //	ofDrawSphere(2.0, 5.0);
-   //	ofPopMatrix();
-
    // Draw Cams
    ofSetColor(ofColor::dimGrey);
    mainCam.draw();
-   cam1.draw();
-   cam2.draw();
+   trackingCam.draw();
+   //landingCam.draw();
+   fixedCam.draw();
 
    // Draw Models
+   ofPushMatrix();
+   //ofEnableLighting(); // Add lighting first XD
+   ofSetColor(ofColor::white);
+   tractor.drawFaces();
+   cornField.drawFaces();
+   
+   ofPopMatrix();
 
    // Draw Bounding Boxes
 
@@ -217,10 +242,13 @@ void ofApp::keyPressed(int key) {
       theCam = &mainCam;
       break;
    case OF_KEY_F2:
-      theCam = &cam1;
+      theCam = &fixedCam;
       break;
    case OF_KEY_F3:
-      theCam = &cam2;
+      theCam = &landingCam;
+      break;
+   case OF_KEY_F4:
+      theCam = &trackingCam;
       break;
    default:
       break;
