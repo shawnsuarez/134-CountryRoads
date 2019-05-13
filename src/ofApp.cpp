@@ -28,6 +28,7 @@ void ofApp::setup() {
    string modelPath = "Tractor/Tractor.obj";
    if (tractor.loadModel(modelPath)) {
       tractor.setScaleNormalization(false);
+      tractor.enableMaterials();
       ofVec3f min = tractor.getSceneMin() + tractor.getPosition();
       ofVec3f max = tractor.getSceneMax() + tractor.getPosition();
 
@@ -45,6 +46,14 @@ void ofApp::setup() {
       cornField.setPosition(-100, 32, 80);
       cornField.setScale(2, 1, 2);
       cornMesh = cornField.getMesh(0);
+
+      // Create Bounding Box
+      ofVec3f min = cornField.getSceneMin() + cornField.getPosition();
+      ofVec3f max = cornField.getSceneMax() + cornField.getPosition();
+
+      cout << "Corn Min: " << min << " Corn Max: " << max << endl;
+
+      fieldBox = Box(Vector3(min.x, min.y, min.z), Vector3(max.x, max.y, max.z));
    }
    else {
       ofLogFatalError("Can't load model: " + modelPath);
@@ -55,7 +64,27 @@ void ofApp::setup() {
 
 
    // Octree
+   numLevels = 5;
+   cout << "Generating Octree with " << numLevels << " levels." << endl;
+   float startTime = ofGetElapsedTimeMillis();
 
+   //oct.create(cornMesh, numLevels);
+
+   float endTime = ofGetElapsedTimeMillis();
+   float createTime = (endTime - startTime);
+   cout << "Octree Creation Time: " << createTime << " ms" << endl;
+
+   bShowOct = false;
+
+   colors.push_back(ofColor::white); // Colors for drawing octree levels
+   colors.push_back(ofColor::blue);
+   colors.push_back(ofColor::red);
+   colors.push_back(ofColor::yellow);
+   colors.push_back(ofColor::green);
+   colors.push_back(ofColor::purple);
+   colors.push_back(ofColor::orange);
+   colors.push_back(ofColor::cyan);
+   colors.push_back(ofColor::magenta);
 
    // Camera
    mainCam.setDistance(100);
@@ -100,12 +129,35 @@ void ofApp::setup() {
       ofExit();
    }
 
+   // Lighting
+   /*sunLight.setup();
+   sunLight.enable();
+   sunLight.setDirectional();
+   sunLight.setAmbientColor(ofFloatColor(100, 1, 111));
+   sunLight.setDiffuseColor(ofFloatColor(255, 243, 62));
+   sunLight.setSpecularColor(ofFloatColor(100, 100, 100));*/
+
+   //sunLight.setScale(.5);
+   //sunLight.setSpotlightCutOff(1000);
+   //sunLight.setAttenuation(2, .001, .001);
+   //sunLight.setAmbientColor(ofFloatColor(0.1, 0.1, 0.1));
+   //sunLight.setDiffuseColor(ofFloatColor(1, 233, 1));
+   //sunLight.setSpecularColor(ofFloatColor(1, 233, 1));
+
+   //sunLight.rotate(-90, ofVec3f(1, 0, 0));
+   //sunLight.setPosition(0, 50, 0);
+
+   ofEnableLighting(); // Add lighting first XD
+
+   // setup rudimentary lighting 
+   //
+   initLightingAndMaterials();
+
    // GUI
    gui.setup();
    gui.add(move.setup("Move Force", 10, 1, 100));
    gui.add(gravity.setup("Gravity", 3, -20, 40));
    bHide = false;
-   //	gui.add(camDistance.setup("Camera Distance", 20, 10, 50));
 }
 
 //--------------------------------------------------------------
@@ -141,28 +193,53 @@ void ofApp::update() {
 
 //--------------------------------------------------------------
 void ofApp::draw() {
-   ofBackground(ofColor::black);
+   ofBackground(ofColor::darkGrey);
    
    ofEnableDepthTest();
    theCam->begin();
 
+   //sunLight.draw();
+
+   // Draw Particle
+   sys->draw();
+
    // Draw Cams
+   ofFill();
    ofSetColor(ofColor::dimGrey);
    mainCam.draw();
    trackingCam.draw();
    //landingCam.draw();
    fixedCam.draw();
 
+   //ofDisableLighting();
+
    // Draw Models
    ofPushMatrix();
-   //ofEnableLighting(); // Add lighting first XD
+   ofNoFill();
    ofSetColor(ofColor::white);
    tractor.drawFaces();
    cornField.drawFaces();
-   
    ofPopMatrix();
 
    // Draw Bounding Boxes
+   /*Vector3 min = fieldBox.parameters[0];
+   Vector3 max = fieldBox.parameters[1];
+   Vector3 size = max - min;
+   Vector3 center = size / 2 + min;
+   ofVec3f p = ofVec3f(center.x() + 60, center.y(), center.z() - 40);
+   float w = size.x() * 2;
+   float h = size.y();
+   float d = size.z() * 2;
+   ofDrawBox(p, w, h, d);*/
+
+   // Draw Octree
+   if (bShowOct) {
+      ofPushMatrix();
+      ofMultMatrix(cornField.getModelMatrix());
+      oct.drawLeafNodes(oct.root);
+      //oct.draw(oct.root, numLevels, 0, colors);
+      ofPopMatrix();
+   }
 
    // draw a grid
    //
@@ -172,9 +249,6 @@ void ofApp::draw() {
    ofSetColor(ofColor::dimGrey);
    ofDrawGridPlane(10.0f, 16, false);
    ofPopMatrix();
-
-   // Draw Particle
-   sys->draw();
 
    theCam->end();
 
@@ -237,6 +311,9 @@ void ofApp::keyPressed(int key) {
       break;
    case 'h':
       bHide = !bHide;
+      break;
+   case 'o':
+      bShowOct = !bShowOct;
       break;
    case OF_KEY_F1:
       theCam = &mainCam;
@@ -337,4 +414,42 @@ void ofApp::gotMessage(ofMessage msg) {
 //--------------------------------------------------------------
 void ofApp::dragEvent(ofDragInfo dragInfo) {
 
+}
+
+//--------------------------------------------------------------
+// setup basic ambient lighting in GL  (for now, enable just 1 light)
+//
+void ofApp::initLightingAndMaterials() {
+
+   static float ambient[] =
+   { .5f, .5f, .5, 1.0f };
+   static float diffuse[] =
+   { 1.0f, 1.0f, 1.0f, 1.0f };
+
+   static float position[] =
+   { 5.0, 5.0, 5.0, 0.0 };
+
+   static float lmodel_ambient[] =
+   { 1.0f, 1.0f, 1.0f, 1.0f };
+
+   static float lmodel_twoside[] =
+   { GL_TRUE };
+
+
+   glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
+   glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
+   glLightfv(GL_LIGHT0, GL_POSITION, position);
+
+   glLightfv(GL_LIGHT1, GL_AMBIENT, ambient);
+   glLightfv(GL_LIGHT1, GL_DIFFUSE, diffuse);
+   glLightfv(GL_LIGHT1, GL_POSITION, position);
+
+
+   glLightModelfv(GL_LIGHT_MODEL_AMBIENT, lmodel_ambient);
+   glLightModelfv(GL_LIGHT_MODEL_TWO_SIDE, lmodel_twoside);
+
+   glEnable(GL_LIGHTING);
+   glEnable(GL_LIGHT0);
+   //	glEnable(GL_LIGHT1);
+   glShadeModel(GL_SMOOTH);
 }

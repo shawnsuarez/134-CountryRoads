@@ -6,6 +6,7 @@
 #include "ParticleSystem.h"
 #include "Particle.h"
 #include "box.h"
+#include "Octree.h"
 
 class ofApp : public ofBaseApp {
 
@@ -27,11 +28,8 @@ public:
    void windowResized(int w, int h);
    void dragEvent(ofDragInfo dragInfo);
    void gotMessage(ofMessage msg);
+   void initLightingAndMaterials();
 
-   // Cameras
-   ofEasyCam mainCam;
-   ofCamera landingCam, trackingCam, fixedCam;
-   ofCamera *theCam;
 
    // Particle System
    ParticleSystem *sys;
@@ -42,18 +40,36 @@ public:
    // Models
    ofxAssimpModelLoader tractor, cornField;
    ofMesh cornMesh;
-   Box boundingBox;
+   Box shipBox, fieldBox;
 
-   // Lighting
-   ofLight sunLight;
+   // Landing Areas
+   vector<Box> landing;
+
+   // Octree
+   Octree oct;
+   int numLevels;
+   vector<ofColor> colors;
+   bool bShowOct;
+
+   // Cameras
+   ofEasyCam mainCam;
+   ofCamera landingCam, trackingCam, fixedCam;
+   ofCamera *theCam;
 
    // Sounds
    ofSoundPlayer countryRoads, thrusters;
    bool bThrust;
 
+   // Lighting
+   ofLight sunLight;
+   ofLight keyLight, fillLight, rimLight;
+   ofMaterial planeMaterial;
+
+
    ofVec3f currentPos, box1Pos, box2Pos, oldPos, newPos;
    float box1Width, box1Height, box2Width, box2Height;
 
+   // GUI
    bool bHide;
    ofxFloatSlider camDistance;
    ofxFloatSlider gravity;
