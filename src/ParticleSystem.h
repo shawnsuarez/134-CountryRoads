@@ -41,6 +41,32 @@ public:
    void set(const ofVec3f &gravity) { this->gravity = gravity; };
 };
 
+class TurbulenceForce : public ParticleForce {
+   ofVec3f tmin, tmax;
+public:
+   void set(const ofVec3f &min, const ofVec3f &max) { tmin = min; tmax = max; }
+   TurbulenceForce(const ofVec3f & min, const ofVec3f &max);
+   void updateForce(Particle *);
+};
+
+class ImpulseRadialForce : public ParticleForce {
+   float magnitude;
+   float height = .2;
+public:
+   void set(float mag) { magnitude = mag; }
+   void setHeight(float h) { height = h; }
+   ImpulseRadialForce(float magnitude);
+   void updateForce(Particle *);
+};
+
+class CyclicForce : public ParticleForce {
+   float magnitude;
+public:
+   void set(float mag) { magnitude = mag; }
+   CyclicForce(float magnitude);
+   void updateForce(Particle *);
+};
+
 class MovementForce : public ParticleForce {
 private:
    ofVec3f movement;

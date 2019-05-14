@@ -87,6 +87,52 @@ void GravityForce::updateForce(Particle * particle) {
 	particle->forces += gravity * particle->mass;
 }
 
+// Turbulence Force Field 
+//
+TurbulenceForce::TurbulenceForce(const ofVec3f &min, const ofVec3f &max) {
+   tmin = min;
+   tmax = max;
+}
+
+void TurbulenceForce::updateForce(Particle * particle) {
+   //
+   // We are going to add a little "noise" to a particles
+   // forces to achieve a more natual look to the motion
+   //
+   particle->forces.x += ofRandom(tmin.x, tmax.x);
+   particle->forces.y += ofRandom(tmin.y, tmax.y);
+   particle->forces.z += ofRandom(tmin.z, tmax.z);
+}
+
+// Impulse Radial Force - this is a "one shot" force that
+// eminates radially outward in random directions.
+//
+ImpulseRadialForce::ImpulseRadialForce(float magnitude) {
+   this->magnitude = magnitude;
+   applyOnce = true;
+}
+
+void ImpulseRadialForce::updateForce(Particle * particle) {
+
+   // we basically create a random direction for each particle
+   // the force is only added once after it is triggered.
+   //
+   ofVec3f dir = ofVec3f(ofRandom(-1, 1), ofRandom(-height / 2.0, height / 2.0), ofRandom(-1, 1));
+   particle->forces += dir.getNormalized() * magnitude;
+}
+
+CyclicForce::CyclicForce(float magnitude) {
+   this->magnitude = magnitude;
+}
+
+void CyclicForce::updateForce(Particle * particle) {
+
+   ofVec3f position = particle->position;
+   ofVec3f norm = position.getNormalized();
+   ofVec3f dir = norm.cross(ofVec3f(1, 0, 0));
+   particle->forces += dir.getNormalized() * magnitude;
+}
+
 // Movement Forces
 MovementForce::MovementForce(const ofVec3f & m)
 {

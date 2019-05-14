@@ -5,7 +5,7 @@
 void ofApp::setup() {
    ofSetBackgroundColor(ofColor::black);
 
-   // Particle Physics Setup
+   // Particles & Physics Setup
    sys = new ParticleSystem();
    grav = new GravityForce();
    moveForce = new MovementForce();
@@ -23,6 +23,39 @@ void ofApp::setup() {
    sys->setLifespan(10000000);
    sys->addForce(grav);
    sys->addForce(moveForce);
+
+
+   // texture loading
+   //
+   ofDisableArbTex();     // disable rectangular textures
+
+   // load textures
+   //
+   string imagePath = "images/dot.png";
+   if (!ofLoadImage(particleTex, imagePath)) {
+      cout << "Particle Texture File: " << imagePath << " not found." << endl;
+      ofExit();
+   }
+
+   // load the shader
+   //
+#ifdef TARGET_OPENGLES
+   shader.load("shaders_gles/shader");
+#else
+   shader.load("shaders/shader");
+#endif
+
+   radialForce = new ImpulseRadialForce(1000);
+   radialForce->setHeight(0.2);
+   //cyclicForce = new CyclicForce(500);
+
+   thrusterEmitter.sys->addForce(radialForce);
+   //thrusterEmitter.sys->addForce(cyclicForce);
+   thrusterEmitter.setVelocity(ofVec3f(0, 0, 0));
+   thrusterEmitter.setEmitterType(RadialEmitter);
+   thrusterEmitter.setGroupSize(200);
+   thrusterEmitter.setRandomLife(true);
+   thrusterEmitter.setLifespanRange(ofVec2f(0.3, 0.8));
 
    // Models
    string modelPath = "Tractor/Tractor.obj";
@@ -130,23 +163,6 @@ void ofApp::setup() {
    }
 
    // Lighting
-   /*sunLight.setup();
-   sunLight.enable();
-   sunLight.setDirectional();
-   sunLight.setAmbientColor(ofFloatColor(100, 1, 111));
-   sunLight.setDiffuseColor(ofFloatColor(255, 243, 62));
-   sunLight.setSpecularColor(ofFloatColor(100, 100, 100));*/
-
-   //sunLight.setScale(.5);
-   //sunLight.setSpotlightCutOff(1000);
-   //sunLight.setAttenuation(2, .001, .001);
-   //sunLight.setAmbientColor(ofFloatColor(0.1, 0.1, 0.1));
-   //sunLight.setDiffuseColor(ofFloatColor(1, 233, 1));
-   //sunLight.setSpecularColor(ofFloatColor(1, 233, 1));
-
-   //sunLight.rotate(-90, ofVec3f(1, 0, 0));
-   //sunLight.setPosition(0, 50, 0);
-
    ofEnableLighting(); // Add lighting first XD
 
    // setup rudimentary lighting 
@@ -157,6 +173,7 @@ void ofApp::setup() {
    gui.setup();
    gui.add(move.setup("Move Force", 10, 1, 100));
    gui.add(gravity.setup("Gravity", 3, -20, 40));
+   gui.add(radius.setup("Particle Radius", 5, 1, 10));
    bHide = false;
 }
 
@@ -170,11 +187,14 @@ void ofApp::update() {
       thrusters.play();
    }
 
+   // Update Particles
    sys->update();
+   thrusterEmitter.update();
    currentPos = sys->particles[0].position;
 
    // Set tractor's position to the particles position
    tractor.setPosition(currentPos.x, currentPos.y, currentPos.z);
+   thrusterEmitter.setPosition(currentPos);
 
    // Set fixedCam as a trailing cam
    fixedCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 50, currentPos.z + 50));
@@ -195,13 +215,25 @@ void ofApp::update() {
 void ofApp::draw() {
    ofBackground(ofColor::darkGrey);
    
+   loadVbo();
+
    ofEnableDepthTest();
+   shader.begin();
    theCam->begin();
 
    //sunLight.draw();
 
-   // Draw Particle
+   // Draw Particles
    sys->draw();
+
+   ofSetColor(ofColor::black);
+
+   ofEnablePointSprites();
+   particleTex.bind();
+   vbo.draw(GL_POINTS, 0, (int)thrusterEmitter.sys->particles.size());
+   particleTex.unbind();
+   shader.end();
+   ofDisablePointSprites();
 
    // Draw Cams
    ofFill();
@@ -255,6 +287,13 @@ void ofApp::draw() {
    // draw the GUI
    ofDisableDepthTest();
    if (!bHide) gui.draw();
+
+   // draw screen data
+   //
+   string str;
+   str += "Frame Rate: " + std::to_string(ofGetFrameRate());
+   ofSetColor(ofColor::white);
+   ofDrawBitmapString(str, ofGetWindowWidth() - 170, 15);
 }
 
 // Use ship bounding box
@@ -280,23 +319,38 @@ void ofApp::keyPressed(int key) {
    switch (key) {
    case OF_KEY_UP:
       moveForce->set(ofVec3f(0, 0, -move));
-      if (!bThrust) bThrust = true;
+      if (!bThrust) {
+         bThrust = true;
+         thrusterEmitter.start();
+      }
       break;
    case OF_KEY_DOWN:
       moveForce->set(ofVec3f(0, 0, move));
-      if (!bThrust) bThrust = true;
+      if (!bThrust) {
+         bThrust = true;
+         thrusterEmitter.start();
+      }
       break;
    case OF_KEY_LEFT:
       moveForce->set(ofVec3f(-move, 0));
-      if (!bThrust) bThrust = true;
+      if (!bThrust) {
+         bThrust = true;
+         thrusterEmitter.start();
+      }
       break;
    case OF_KEY_RIGHT:
       moveForce->set(ofVec3f(move, 0));
-      if (!bThrust) bThrust = true;
+      if (!bThrust) {
+         bThrust = true;
+         thrusterEmitter.start();
+      }
       break;
    case ' ':
       moveForce->set(ofVec3f(0, move, 0));
-      if (!bThrust) bThrust = true;
+      if (!bThrust) {
+         bThrust = true;
+         thrusterEmitter.start();
+      }
       break;
    case 'C':
    case 'c':
@@ -342,29 +396,34 @@ void ofApp::keyReleased(int key) {
       //sys->particles[0].velocity = ofVec3f(sys->particles[0].velocity.x, sys->particles[0].velocity.y, 0);
       bThrust = false;
       thrusters.stop();
+      thrusterEmitter.stop();
       break;
    case OF_KEY_DOWN:
       moveForce->set(ofVec3f(0, 0));
       //sys->particles[0].velocity = ofVec3f(sys->particles[0].velocity.x, sys->particles[0].velocity.y, 0);
       bThrust = false;
       thrusters.stop();
+      thrusterEmitter.stop();
       break;
    case OF_KEY_LEFT:
       moveForce->set(ofVec3f(0, 0));
       //sys->particles[0].velocity = ofVec3f(0, sys->particles[0].velocity.y, sys->particles[0].velocity.z);
       bThrust = false;
       thrusters.stop();
+      thrusterEmitter.stop();
       break;
    case OF_KEY_RIGHT:
       moveForce->set(ofVec3f(0, 0));
       //sys->particles[0].velocity = ofVec3f(0, sys->particles[0].velocity.y, sys->particles[0].velocity.z);
       bThrust = false;
       thrusters.stop();
+      thrusterEmitter.stop();
       break;
    case ' ':
       moveForce->set(ofVec3f(0, 0, 0));
       bThrust = false;
       thrusters.stop();
+      thrusterEmitter.stop();
       break;
    default:
       break;
@@ -452,4 +511,23 @@ void ofApp::initLightingAndMaterials() {
    glEnable(GL_LIGHT0);
    //	glEnable(GL_LIGHT1);
    glShadeModel(GL_SMOOTH);
+}
+
+// load vertex buffer in preparation for rendering
+//
+void ofApp::loadVbo() {
+   if (thrusterEmitter.sys->particles.size() < 1) return;
+
+   vector<ofVec3f> sizes;
+   vector<ofVec3f> points;
+   for (int i = 0; i < thrusterEmitter.sys->particles.size(); i++) {
+      points.push_back(thrusterEmitter.sys->particles[i].position);
+      sizes.push_back(ofVec3f(radius));
+   }
+   // upload the data to the vbo
+   //
+   int total = (int)points.size();
+   vbo.clear();
+   vbo.setVertexData(&points[0], total, GL_STATIC_DRAW);
+   vbo.setNormalData(&sizes[0], total, GL_STATIC_DRAW);
 }

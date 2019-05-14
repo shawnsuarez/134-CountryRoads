@@ -4,6 +4,7 @@
 #include "ofxGui.h"
 #include "ofxAssimpModelLoader.h"
 #include "ParticleSystem.h"
+#include "ParticleEmitter.h"
 #include "Particle.h"
 #include "box.h"
 #include "Octree.h"
@@ -29,6 +30,7 @@ public:
    void dragEvent(ofDragInfo dragInfo);
    void gotMessage(ofMessage msg);
    void initLightingAndMaterials();
+   void loadVbo();
 
 
    // Particle System
@@ -37,13 +39,26 @@ public:
    MovementForce *moveForce;
    Particle ship;
 
+   ParticleEmitter thrusterEmitter;
+   ImpulseRadialForce *radialForce;
+   CyclicForce *cyclicForce;
+
+   // textures
+   //
+   ofTexture  particleTex;
+
+   // shaders
+   //
+   ofVbo vbo;
+   ofShader shader;
+
    // Models
    ofxAssimpModelLoader tractor, cornField;
    ofMesh cornMesh;
    Box shipBox, fieldBox;
 
    // Landing Areas
-   vector<Box> landing;
+   vector<Box> landings;
 
    // Octree
    Octree oct;
@@ -60,12 +75,6 @@ public:
    ofSoundPlayer countryRoads, thrusters;
    bool bThrust;
 
-   // Lighting
-   ofLight sunLight;
-   ofLight keyLight, fillLight, rimLight;
-   ofMaterial planeMaterial;
-
-
    ofVec3f currentPos, box1Pos, box2Pos, oldPos, newPos;
    float box1Width, box1Height, box2Width, box2Height;
 
@@ -74,5 +83,6 @@ public:
    ofxFloatSlider camDistance;
    ofxFloatSlider gravity;
    ofxFloatSlider move;
+   ofxFloatSlider radius;
    ofxPanel gui;
 };
