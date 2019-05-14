@@ -1,0 +1,44 @@
+#pragma once
+#include "ofMain.h"
+#include "box.h"
+#include "ray.h"
+#include "vector3.h"
+
+
+class TreeNode {
+public:
+	Box box;
+	vector<int> points;
+	vector<TreeNode> children;
+};
+
+class Octree {
+public:
+
+	void create(const ofMesh & mesh, int numLevels);
+	void subdivide(const ofMesh & mesh, TreeNode & node, int numLevels, int level); // recursive
+	bool intersect(const Ray &, const TreeNode & node, TreeNode & nodeRtn);
+	void draw(TreeNode & node, int numLevels, int level); // more recursive
+	void draw(int numLevels, int level) {
+		draw(root, numLevels, level);
+	}
+	void drawLeafNodes(TreeNode & node);
+	static void drawBox(const Box &box);
+	static Box meshBounds(const ofMesh &);
+	int getMeshPointsInBox(const ofMesh &mesh, const vector<int> & points, Box & box, vector<int> & pointsRtn);
+	void subDivideBox8(const Box &b, vector<Box> & boxList);
+
+	ofMesh mesh;
+	TreeNode root;
+	TreeNode selectedPoint;
+	
+	const float INTERSECT = 4000;
+
+	ofColor levelColors[15]
+	{ ofColor::red, ofColor::hotPink,  ofColor::yellow, ofColor::green, ofColor::blue, ofColor::indigo, ofColor::violet,
+		ofColor::azure, ofColor::aquamarine, ofColor::bisque, ofColor(rand() % 255, rand() % 255, rand() % 255), ofColor(rand() % 255, rand() % 255, rand() % 255),
+		ofColor(rand() % 255, rand() % 255, rand() % 255), ofColor(rand() % 255, rand() % 255, rand() % 255), ofColor(rand() % 255, rand() % 255, rand() % 255)
+	};
+
+
+};
