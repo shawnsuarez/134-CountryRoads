@@ -55,17 +55,13 @@ void ofApp::setup() {
    thrusterEmitter.setEmitterType(RadialEmitter);
    thrusterEmitter.setGroupSize(200);
    thrusterEmitter.setRandomLife(true);
-   thrusterEmitter.setLifespanRange(ofVec2f(0.3, 0.8));
+   thrusterEmitter.setLifespanRange(ofVec2f(0.2, 0.5));
 
    // Models
    string modelPath = "Tractor/Tractor.obj";
    if (tractor.loadModel(modelPath)) {
       tractor.setScaleNormalization(false);
-      tractor.enableMaterials();
-      ofVec3f min = tractor.getSceneMin() + tractor.getPosition();
-      ofVec3f max = tractor.getSceneMax() + tractor.getPosition();
-
-      // Create Bounding Box
+      //tractor.setRotation(0, 180, 0, 1, 0);
    }
    else {
       ofLogFatalError("Can't load model: " + modelPath);
@@ -73,20 +69,11 @@ void ofApp::setup() {
    }
 
    modelPath = "cornMoon/cornMoon.obj";
-   //modelPath = "geo/mars-low.obj";
    if (cornField.loadModel(modelPath)) {
       cornField.setScaleNormalization(false);
       cornField.setPosition(-100, 32, 80);
       cornField.setScale(2, 1, 2);
       cornMesh = cornField.getMesh(0);
-
-      // Create Bounding Box
-      ofVec3f min = cornField.getSceneMin() + cornField.getPosition();
-      ofVec3f max = cornField.getSceneMax() + cornField.getPosition();
-
-      cout << "Corn Min: " << min << " Corn Max: " << max << endl;
-
-      fieldBox = Box(Vector3(min.x, min.y, min.z), Vector3(max.x, max.y, max.z));
    }
    else {
       ofLogFatalError("Can't load model: " + modelPath);
@@ -97,11 +84,11 @@ void ofApp::setup() {
 
 
    // Octree
-   numLevels = 5;
+   numLevels = 10;
    cout << "Generating Octree with " << numLevels << " levels." << endl;
    float startTime = ofGetElapsedTimeMillis();
 
-   //oct.create(cornMesh, numLevels);
+   oct.create(cornMesh, numLevels);
 
    float endTime = ofGetElapsedTimeMillis();
    float createTime = (endTime - startTime);
@@ -192,6 +179,11 @@ void ofApp::update() {
    thrusterEmitter.update();
    currentPos = sys->particles[0].position;
 
+   // Create Bounding Box
+   ofVec3f min = tractor.getSceneMin() + tractor.getPosition();
+   ofVec3f max = tractor.getSceneMax() + tractor.getPosition();
+   shipBox = Box(Vector3(min.x, min.y, min.z), Vector3(max.x, max.y, max.z));
+
    // Set tractor's position to the particles position
    tractor.setPosition(currentPos.x, currentPos.y, currentPos.z);
    thrusterEmitter.setPosition(currentPos);
@@ -226,7 +218,7 @@ void ofApp::draw() {
    // Draw Particles
    sys->draw();
 
-   ofSetColor(ofColor::black);
+   ofSetColor(ofColor::lightGoldenRodYellow);
 
    ofEnablePointSprites();
    particleTex.bind();
@@ -254,15 +246,15 @@ void ofApp::draw() {
    ofPopMatrix();
 
    // Draw Bounding Boxes
-   /*Vector3 min = fieldBox.parameters[0];
-   Vector3 max = fieldBox.parameters[1];
+   Vector3 min = shipBox.parameters[0];
+   Vector3 max = shipBox.parameters[1];
    Vector3 size = max - min;
    Vector3 center = size / 2 + min;
-   ofVec3f p = ofVec3f(center.x() + 60, center.y(), center.z() - 40);
-   float w = size.x() * 2;
+   ofVec3f p = ofVec3f(center.x(), center.y(), center.z());
+   float w = size.x();
    float h = size.y();
-   float d = size.z() * 2;
-   ofDrawBox(p, w, h, d);*/
+   float d = size.z();
+   ofDrawBox(p, w, h, d);
 
    // Draw Octree
    if (bShowOct) {
