@@ -9,12 +9,11 @@ void ofApp::setup() {
    sys = new ParticleSystem();
    grav = new GravityForce();
    moveForce = new MovementForce();
+   turb = new TurbulenceForce(ofVec3f(-0.5, 0, -0.5), ofVec3f(0.5, 0, 0.5));
 
-   currentPos = glm::vec3(0, 100, 0);
-   oldPos = currentPos;
+   currentPos = glm::vec3(0, 30, 0);
 
    ship.position = currentPos;
-   ship.lifespan = 60 * 60 * 1000;
    ship.velocity = ofVec3f(0, 0);
    ship.radius = 1;
    ship.damping = 0.9995;
@@ -23,7 +22,21 @@ void ofApp::setup() {
    sys->setLifespan(10000000);
    sys->addForce(grav);
    sys->addForce(moveForce);
+   sys->addForce(turb);
 
+   // Thruster Setup
+   radialForce = new ImpulseRadialForce(1000);
+   radialForce->setHeight(0.2);
+   //cyclicForce = new CyclicForce(500);
+
+   thrusterEmitter.sys->addForce(radialForce);
+   //thrusterEmitter.sys->addForce(cyclicForce);
+   thrusterEmitter.setVelocity(ofVec3f(0, -100, 0));
+   thrusterEmitter.setEmitterType(DirectionalEmitter);
+   thrusterEmitter.setGroupSize(200);
+   thrusterEmitter.setRandomLife(true);
+   thrusterEmitter.setLifespanRange(ofVec2f(0.05, 0.1));
+   thrusterEmitter.setRate(20);
 
    // texture loading
    //
@@ -45,23 +58,10 @@ void ofApp::setup() {
    shader.load("shaders/shader");
 #endif
 
-   radialForce = new ImpulseRadialForce(1000);
-   radialForce->setHeight(0.2);
-   //cyclicForce = new CyclicForce(500);
-
-   thrusterEmitter.sys->addForce(radialForce);
-   //thrusterEmitter.sys->addForce(cyclicForce);
-   thrusterEmitter.setVelocity(ofVec3f(0, 0, 0));
-   thrusterEmitter.setEmitterType(RadialEmitter);
-   thrusterEmitter.setGroupSize(200);
-   thrusterEmitter.setRandomLife(true);
-   thrusterEmitter.setLifespanRange(ofVec2f(0.2, 0.5));
-
    // Models
    string modelPath = "Tractor/Tractor.obj";
    if (tractor.loadModel(modelPath)) {
       tractor.setScaleNormalization(false);
-      //tractor.setRotation(0, 180, 0, 1, 0);
    }
    else {
       ofLogFatalError("Can't load model: " + modelPath);
@@ -69,30 +69,33 @@ void ofApp::setup() {
    }
 
    modelPath = "cornMoon/cornMoon.obj";
+   //modelPath = "geo/mars-low.obj";
    if (cornField.loadModel(modelPath)) {
       cornField.setScaleNormalization(false);
-      cornField.setPosition(-100, 32, 80);
-      cornField.setScale(2, 1, 2);
-      cornMesh = cornField.getMesh(0);
    }
    else {
       ofLogFatalError("Can't load model: " + modelPath);
       ofExit();
    }
 
+   bWireframe = false;
+   bBoundingBox = false;
+
    // Landing Fields
 
 
    // Octree
-   numLevels = 10;
+   numLevels = 8;
    cout << "Generating Octree with " << numLevels << " levels." << endl;
    float startTime = ofGetElapsedTimeMillis();
 
-   oct.create(cornMesh, numLevels);
+   oct.create(cornField.getMesh(0), numLevels);
 
    float endTime = ofGetElapsedTimeMillis();
    float createTime = (endTime - startTime);
    cout << "Octree Creation Time: " << createTime << " ms" << endl;
+
+   selectedPoint = ofVec3f(0, 0, 0);
 
    bShowOct = false;
 
@@ -115,14 +118,16 @@ void ofApp::setup() {
 
    theCam = &mainCam;
 
-   trackingCam.setGlobalPosition(glm::vec3(100, 25, 0));
+   trackingCam.setGlobalPosition(glm::vec3(0, 25, 25));
    trackingCam.lookAt(glm::vec3(0, 0, 0));
 
    landingCam.setGlobalPosition(currentPos);
    landingCam.lookAt(glm::vec3(0, 0, 0));
 
-   fixedCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 50, currentPos.z + 50));
+   fixedCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 25, currentPos.z + 25));
    fixedCam.lookAt(currentPos);
+
+   bShowCams = false;
 
    // Sound
    // Take Me Home, Country Roads
@@ -131,7 +136,7 @@ void ofApp::setup() {
    if (countryRoads.load(soundPath)) {
       countryRoads.setLoop(true);
       countryRoads.setVolume(0.8f);
-      countryRoads.play();
+      //countryRoads.play();
    }
    else {
       ofLogFatalError("Can't load sound: " + soundPath);
@@ -150,18 +155,27 @@ void ofApp::setup() {
    }
 
    // Lighting
-   ofEnableLighting(); // Add lighting first XD
+   ofEnableLighting();
 
    // setup rudimentary lighting 
    //
    initLightingAndMaterials();
 
+   sunLight.setup();
+   sunLight.enable();
+   sunLight.setAreaLight(100, 100);
+   sunLight.setAmbientColor(ofFloatColor(0.1, 0.1, 0.1));
+   sunLight.setDiffuseColor(ofFloatColor(100, 100, 100));
+   sunLight.setSpecularColor(ofFloatColor(1, 1, 1));
+   sunLight.setPosition(glm::vec3(0, 150, 0));
+
    // GUI
    gui.setup();
    gui.add(move.setup("Move Force", 10, 1, 100));
-   gui.add(gravity.setup("Gravity", 3, -20, 40));
+   gui.add(gravity.setup("Gravity", 0, -20, 40));
    gui.add(radius.setup("Particle Radius", 5, 1, 10));
    bHide = false;
+   bShowPoint = false;
 }
 
 //--------------------------------------------------------------
@@ -179,7 +193,7 @@ void ofApp::update() {
    thrusterEmitter.update();
    currentPos = sys->particles[0].position;
 
-   // Create Bounding Box
+   // Create Ship Bounding Box
    ofVec3f min = tractor.getSceneMin() + tractor.getPosition();
    ofVec3f max = tractor.getSceneMax() + tractor.getPosition();
    shipBox = Box(Vector3(min.x, min.y, min.z), Vector3(max.x, max.y, max.z));
@@ -189,18 +203,19 @@ void ofApp::update() {
    thrusterEmitter.setPosition(currentPos);
 
    // Set fixedCam as a trailing cam
-   fixedCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 50, currentPos.z + 50));
+   fixedCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 25, currentPos.z + 25));
    fixedCam.lookAt(currentPos);
 
    // Set trackingCam to follow the tractor from a fixed position
    trackingCam.lookAt(currentPos);
 
    // Set landingCam to tractor's position looking down
-   landingCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y, currentPos.z));
+   landingCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 20, currentPos.z));
    landingCam.lookAt(glm::vec3(currentPos.x, currentPos.y - 50, currentPos.z));
 
    checkCollision();
    checkLanding();
+   checkAltitude();
 }
 
 //--------------------------------------------------------------
@@ -212,8 +227,6 @@ void ofApp::draw() {
    ofEnableDepthTest();
    shader.begin();
    theCam->begin();
-
-   //sunLight.draw();
 
    // Draw Particles
    sys->draw();
@@ -228,82 +241,124 @@ void ofApp::draw() {
    ofDisablePointSprites();
 
    // Draw Cams
-   ofFill();
-   ofSetColor(ofColor::dimGrey);
-   mainCam.draw();
-   trackingCam.draw();
-   //landingCam.draw();
-   fixedCam.draw();
-
-   //ofDisableLighting();
+   if (bShowCams) {
+      ofFill();
+      ofSetColor(ofColor::dimGrey);
+      mainCam.draw();
+      trackingCam.draw();
+      landingCam.draw();
+      fixedCam.draw();
+   }
 
    // Draw Models
    ofPushMatrix();
    ofNoFill();
    ofSetColor(ofColor::white);
-   tractor.drawFaces();
-   cornField.drawFaces();
+   if (bWireframe) {
+      tractor.drawWireframe();
+      cornField.drawWireframe();
+   }
+   else {
+      tractor.drawFaces();
+      cornField.drawFaces();
+   }
    ofPopMatrix();
 
-   // Draw Bounding Boxes
-   Vector3 min = shipBox.parameters[0];
-   Vector3 max = shipBox.parameters[1];
-   Vector3 size = max - min;
-   Vector3 center = size / 2 + min;
-   ofVec3f p = ofVec3f(center.x(), center.y(), center.z());
-   float w = size.x();
-   float h = size.y();
-   float d = size.z();
-   ofDrawBox(p, w, h, d);
+   // Draw Ship Bounding Box
+   if (bBoundingBox) {
+      Vector3 min = shipBox.parameters[0];
+      Vector3 max = shipBox.parameters[1];
+      Vector3 size = max - min;
+      Vector3 center = size / 2 + min;
+      ofVec3f p = ofVec3f(center.x(), center.y(), center.z());
+      float w = size.x();
+      float h = size.y();
+      float d = size.z();
+      ofDrawBox(p, w, h, d);
+   }
+
+   if (bShowPoint && bPointSelected) {
+      ofSetColor(ofColor::blue);
+      ofDrawSphere(selectedPoint, 5);
+   }
 
    // Draw Octree
    if (bShowOct) {
       ofPushMatrix();
       ofMultMatrix(cornField.getModelMatrix());
-      oct.drawLeafNodes(oct.root);
+      //oct.drawLeafNodes(oct.root);
       //oct.draw(oct.root, numLevels, 0, colors);
+      oct.draw(oct.root, 3, 0, colors);
       ofPopMatrix();
    }
 
    // draw a grid
    //
-   ofPushMatrix();
+   /*ofPushMatrix();
    ofRotate(90, 0, 0, 1);
    ofSetLineWidth(1);
    ofSetColor(ofColor::dimGrey);
    ofDrawGridPlane(10.0f, 16, false);
-   ofPopMatrix();
+   ofPopMatrix();*/
 
    theCam->end();
 
-   // draw the GUI
+   // Draw GUI
    ofDisableDepthTest();
    if (!bHide) gui.draw();
 
-   // draw screen data
-   //
    string str;
    str += "Frame Rate: " + std::to_string(ofGetFrameRate());
    ofSetColor(ofColor::white);
    ofDrawBitmapString(str, ofGetWindowWidth() - 170, 15);
+
+   str = "Altitude: " + to_string(altitude);
+   ofDrawBitmapString(str, ofGetWindowWidth() - 170, 55);
+
+   str = "Controls: \n UP_ARROW: FORWARD \n DOWN_ARROW: BACK \n";
+   str += " LEFT_ARROW: LEFT \n RIGHT_ARROW : RIGHT \n";
+   str += " SPACE: UP \n CTRL: DOWN \n";
+   str += " F1: Free Cam \n F2: Fixed Cam \n F3: Landing Cam \n F4: Tracking Cam \n";
+   str += " X: Show Cams \n P: Show Point \n R: Reset";
+   ofDrawBitmapString(str, ofGetWindowWidth() - 170, 85);
 }
 
-// Use ship bounding box
+// Check terrain collision using Octree and ship bounding box
 void ofApp::checkCollision() {
-   newPos = sys->particles[0].position;
+   ofVec3f contactPt = currentPos;
+   ofVec3f vel = sys->particles[0].velocity;
+   if (vel.y > 0) return;
 
-   if (newPos.y <= 0) {
-      newPos = oldPos;
-      sys->particles[0].position = newPos;
-      sys->particles[0].velocity.y = 0;
+   TreeNode node;
+   if (oct.intersect(contactPt, oct.root, node)) {
+      cout << "Collision" << endl;
+      sys->particles[0].velocity.y = -sys->particles[0].velocity.y * 0.5;
    }
-
-   oldPos = newPos;
 }
 
 // Check ship's position with landing areas
 void ofApp::checkLanding() {
 
+}
+
+// Check ship altitude using ray intersection
+void ofApp::checkAltitude() {
+   ofVec3f rayPoint = currentPos + ofVec3f(0, 10, 0);
+   ofVec3f rayDir = ofVec3f(currentPos.x, currentPos.y - 1000, currentPos.z);
+   rayDir.normalize();
+   Ray ray = Ray(Vector3(rayPoint.x, rayPoint.y, rayPoint.z),
+      Vector3(rayDir.x, rayDir.y, rayDir.z));
+
+   TreeNode rtn;
+   if (oct.intersect(ray, oct.root, rtn)) {
+      bPointSelected = true;
+      selectedPoint = ofVec3f(rtn.box.center().x(), rtn.box.center().y(), rtn.box.center().z());
+
+      altitude = currentPos.y - selectedPoint.y;
+   }
+   else {
+      bPointSelected = false;
+   }
 }
 
 //--------------------------------------------------------------
@@ -337,6 +392,13 @@ void ofApp::keyPressed(int key) {
          thrusterEmitter.start();
       }
       break;
+   case OF_KEY_CONTROL:
+      moveForce->set(ofVec3f(0, -move, 0));
+      if (!bThrust) {
+         bThrust = true;
+         thrusterEmitter.start();
+      }
+      break;
    case ' ':
       moveForce->set(ofVec3f(0, move, 0));
       if (!bThrust) {
@@ -344,14 +406,15 @@ void ofApp::keyPressed(int key) {
          thrusterEmitter.start();
       }
       break;
+   case 'b':
+      bBoundingBox = !bBoundingBox;
+      break;
    case 'C':
    case 'c':
       if (mainCam.getMouseInputEnabled()) mainCam.disableMouseInput();
       else mainCam.enableMouseInput();
       break;
    case 'F':
-   case 'b':
-      break;
    case 'f':
       ofToggleFullscreen();
       break;
@@ -360,6 +423,19 @@ void ofApp::keyPressed(int key) {
       break;
    case 'o':
       bShowOct = !bShowOct;
+      break;
+   case 'p':
+      bShowPoint = !bShowPoint;
+      break;
+   case 'r':
+      sys->particles[0].position = glm::vec3(0, 30, 0);
+      sys->particles[0].velocity = glm::vec3(0, 0, 0);
+      break;
+   case 'w':
+      bWireframe = !bWireframe;
+      break;
+   case 'x':
+      bShowCams = !bShowCams;
       break;
    case OF_KEY_F1:
       theCam = &mainCam;
@@ -385,28 +461,30 @@ void ofApp::keyReleased(int key) {
    switch (key) {
    case OF_KEY_UP:
       moveForce->set(ofVec3f(0, 0));
-      //sys->particles[0].velocity = ofVec3f(sys->particles[0].velocity.x, sys->particles[0].velocity.y, 0);
       bThrust = false;
       thrusters.stop();
       thrusterEmitter.stop();
       break;
    case OF_KEY_DOWN:
       moveForce->set(ofVec3f(0, 0));
-      //sys->particles[0].velocity = ofVec3f(sys->particles[0].velocity.x, sys->particles[0].velocity.y, 0);
       bThrust = false;
       thrusters.stop();
       thrusterEmitter.stop();
       break;
    case OF_KEY_LEFT:
       moveForce->set(ofVec3f(0, 0));
-      //sys->particles[0].velocity = ofVec3f(0, sys->particles[0].velocity.y, sys->particles[0].velocity.z);
       bThrust = false;
       thrusters.stop();
       thrusterEmitter.stop();
       break;
    case OF_KEY_RIGHT:
       moveForce->set(ofVec3f(0, 0));
-      //sys->particles[0].velocity = ofVec3f(0, sys->particles[0].velocity.y, sys->particles[0].velocity.z);
+      bThrust = false;
+      thrusters.stop();
+      thrusterEmitter.stop();
+      break;
+   case OF_KEY_CONTROL:
+      moveForce->set(ofVec3f(0, 0, 0));
       bThrust = false;
       thrusters.stop();
       thrusterEmitter.stop();
@@ -434,7 +512,7 @@ void ofApp::mouseDragged(int x, int y, int button) {
 
 //--------------------------------------------------------------
 void ofApp::mousePressed(int x, int y, int button) {
-
+   
 }
 
 //--------------------------------------------------------------
@@ -501,7 +579,7 @@ void ofApp::initLightingAndMaterials() {
 
    glEnable(GL_LIGHTING);
    glEnable(GL_LIGHT0);
-   //	glEnable(GL_LIGHT1);
+   glEnable(GL_LIGHT1);
    glShadeModel(GL_SMOOTH);
 }
 

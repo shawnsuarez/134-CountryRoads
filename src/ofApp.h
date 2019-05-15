@@ -17,6 +17,7 @@ public:
    void draw();
    void checkCollision();
    void checkLanding();
+   void checkAltitude();
 
    void keyPressed(int key);
    void keyReleased(int key);
@@ -37,25 +38,25 @@ public:
    ParticleSystem *sys;
    GravityForce *grav;
    MovementForce *moveForce;
+   TurbulenceForce *turb;
    Particle ship;
 
    ParticleEmitter thrusterEmitter;
    ImpulseRadialForce *radialForce;
    CyclicForce *cyclicForce;
 
-   // textures
-   //
    ofTexture  particleTex;
-
-   // shaders
-   //
    ofVbo vbo;
    ofShader shader;
 
    // Models
    ofxAssimpModelLoader tractor, cornField;
    ofMesh cornMesh;
-   Box shipBox, fieldBox;
+   Box shipBox;
+   float altitude;
+   ofVec3f currentPos;
+   bool bWireframe;
+   bool bBoundingBox;
 
    // Landing Areas
    vector<Box> landings;
@@ -70,13 +71,14 @@ public:
    ofEasyCam mainCam;
    ofCamera landingCam, trackingCam, fixedCam;
    ofCamera *theCam;
+   bool bShowCams;
 
    // Sounds
    ofSoundPlayer countryRoads, thrusters;
    bool bThrust;
 
-   ofVec3f currentPos, box1Pos, box2Pos, oldPos, newPos;
-   float box1Width, box1Height, box2Width, box2Height;
+   // Lighting
+   ofLight sunLight;
 
    // GUI
    bool bHide;
@@ -85,4 +87,9 @@ public:
    ofxFloatSlider move;
    ofxFloatSlider radius;
    ofxPanel gui;
+
+   // Test
+   bool bPointSelected;
+   bool bShowPoint;
+   ofVec3f selectedPoint;
 };

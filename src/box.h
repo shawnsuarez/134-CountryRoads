@@ -30,7 +30,7 @@ public:
    Vector3 parameters[2];
    Vector3 min() { return parameters[0]; }
    Vector3 max() { return parameters[1]; }
-   const bool inside(const Vector3 &p) {
+   const bool inside(const Vector3 &p) const {
       return ((p.x() >= parameters[0].x() && p.x() <= parameters[1].x()) &&
          (p.y() >= parameters[0].y() && p.y() <= parameters[1].y()) &&
          (p.z() >= parameters[0].z() && p.z() <= parameters[1].z()));

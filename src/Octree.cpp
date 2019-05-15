@@ -139,40 +139,52 @@ void Octree::subdivide(const ofMesh & mesh, TreeNode & node, int numLevels, int 
    subDivideBox8(node.box, childrenBoxes);
    vector<TreeNode> children;
 
-   for (Box b : childrenBoxes) {
-      TreeNode child = TreeNode();
-      child.box = b;
-      children.push_back(child);
-   }
    int count;
-   level++;
-   for (TreeNode c : children) {
-      count = getMeshPointsInBox(mesh, node.points, c.box, c.points);
+   for (Box c : childrenBoxes) {
+      TreeNode child;
+      child.box = c;
+      count = getMeshPointsInBox(mesh, node.points, child.box, child.points);
       if (count > 0) {
-         node.children.push_back(c);
+         node.children.push_back(child);
       }
       if (count > 1) {
-         subdivide(mesh, node.children.back(), numLevels, level);
+         subdivide(mesh, node.children.back(), numLevels, level + 1);
       }
    }
 }
 
+// Ray Intersection
 bool Octree::intersect(const Ray &ray, const TreeNode & node, TreeNode & nodeRtn) {
-   if (node.children.size() == 0) {
-      if (node.box.intersect(ray, -1000, 1000)) {
+   if (node.box.intersect(ray, -1000, 1000)) {
+      if (node.children.size() == 0)
+      {
          nodeRtn = node;
          return true;
       }
-   }
 
-   if (node.box.intersect(ray, -1000, 1000)) {
-      for (TreeNode t : node.children) {
-         intersect(ray, t, nodeRtn);
+      for (int i = 0; i < node.children.size(); i++)
+      {
+         if (intersect(ray, node.children[i], nodeRtn))
+            return true;
       }
    }
-   else {
-      return false;
+   return false;
+}
+
+// Check collision. If point is inside a leaf node, there is collision
+bool Octree::intersect(const ofVec3f &p, const TreeNode & node, TreeNode & nodeRtn) {
+   if (node.box.inside(Vector3(p.x, p.y, p.z))) {
+      if (node.children.size() == 0) {
+         nodeRtn = node;
+         return true;
+      }
+
+      for (int i = 0; i < node.children.size(); i++) {
+         if (intersect(p, node.children[i], nodeRtn))
+            return true;
+      }
    }
+   return false;
 }
 
 
