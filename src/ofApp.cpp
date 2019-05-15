@@ -68,7 +68,8 @@ void ofApp::setup() {
       ofExit();
    }
 
-   modelPath = "cornMoon/cornMoon.obj";
+   //modelPath = "cornMoon/cornMoon.obj";
+   modelPath = "cornMoon1/cornMoon1.obj";
    //modelPath = "geo/mars-low.obj";
    if (cornField.loadModel(modelPath)) {
       cornField.setScaleNormalization(false);
@@ -164,7 +165,7 @@ void ofApp::setup() {
    sunLight.setup();
    sunLight.enable();
    sunLight.setAreaLight(100, 100);
-   sunLight.setAmbientColor(ofFloatColor(0.1, 0.1, 0.1));
+   sunLight.setAmbientColor(ofFloatColor(0.5, 0.5, 0.5));
    sunLight.setDiffuseColor(ofFloatColor(100, 100, 100));
    sunLight.setSpecularColor(ofFloatColor(1, 1, 1));
    sunLight.setPosition(glm::vec3(0, 150, 0));
@@ -411,8 +412,8 @@ void ofApp::keyPressed(int key) {
       break;
    case 'C':
    case 'c':
-      if (mainCam.getMouseInputEnabled()) mainCam.disableMouseInput();
-      else mainCam.enableMouseInput();
+      //if (mainCam.getMouseInputEnabled()) mainCam.disableMouseInput();
+      //else mainCam.enableMouseInput();
       break;
    case 'F':
    case 'f':
