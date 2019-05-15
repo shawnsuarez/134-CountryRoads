@@ -9,7 +9,7 @@ void ofApp::setup() {
    sys = new ParticleSystem();
    grav = new GravityForce();
    moveForce = new MovementForce();
-   turb = new TurbulenceForce(ofVec3f(-0.5, 0, -0.5), ofVec3f(0.5, 0, 0.5));
+   turb = new TurbulenceForce(ofVec3f(-1, 0, -1), ofVec3f(1, 0, 1));
 
    currentPos = glm::vec3(0, 30, 0);
 
@@ -27,10 +27,10 @@ void ofApp::setup() {
    // Thruster Setup
    radialForce = new ImpulseRadialForce(1000);
    radialForce->setHeight(0.2);
-   //cyclicForce = new CyclicForce(500);
+   cyclicForce = new CyclicForce(500);
 
    thrusterEmitter.sys->addForce(radialForce);
-   //thrusterEmitter.sys->addForce(cyclicForce);
+   thrusterEmitter.sys->addForce(cyclicForce);
    thrusterEmitter.setVelocity(ofVec3f(0, -100, 0));
    thrusterEmitter.setEmitterType(DirectionalEmitter);
    thrusterEmitter.setGroupSize(200);
@@ -86,7 +86,7 @@ void ofApp::setup() {
 
 
    // Octree
-   numLevels = 8;
+   numLevels = 9;
    cout << "Generating Octree with " << numLevels << " levels." << endl;
    float startTime = ofGetElapsedTimeMillis();
 
@@ -100,7 +100,8 @@ void ofApp::setup() {
 
    bShowOct = false;
 
-   colors.push_back(ofColor::white); // Colors for drawing octree levels
+   // Colors for drawing octree levels
+   colors.push_back(ofColor::white); 
    colors.push_back(ofColor::blue);
    colors.push_back(ofColor::red);
    colors.push_back(ofColor::yellow);
@@ -119,7 +120,7 @@ void ofApp::setup() {
 
    theCam = &mainCam;
 
-   trackingCam.setGlobalPosition(glm::vec3(0, 25, 25));
+   trackingCam.setGlobalPosition(glm::vec3(0, 200, 125));
    trackingCam.lookAt(glm::vec3(0, 0, 0));
 
    landingCam.setGlobalPosition(currentPos);
@@ -164,11 +165,13 @@ void ofApp::setup() {
 
    sunLight.setup();
    sunLight.enable();
-   sunLight.setAreaLight(100, 100);
-   sunLight.setAmbientColor(ofFloatColor(0.5, 0.5, 0.5));
+   //sunLight.setAreaLight(200, 200);
+   sunLight.setDirectional();
+   sunLight.setAmbientColor(ofFloatColor(2, 2, 2));
    sunLight.setDiffuseColor(ofFloatColor(100, 100, 100));
    sunLight.setSpecularColor(ofFloatColor(1, 1, 1));
-   sunLight.setPosition(glm::vec3(0, 150, 0));
+   sunLight.setPosition(glm::vec3(0, -150, 0));
+   sunLight.lookAt(glm::vec3(0, 0, 0));
 
    // GUI
    gui.setup();
@@ -221,7 +224,7 @@ void ofApp::update() {
 
 //--------------------------------------------------------------
 void ofApp::draw() {
-   ofBackground(ofColor::darkGrey);
+   ofBackground(ofColor::lightGrey);
    
    loadVbo();
 
@@ -230,10 +233,8 @@ void ofApp::draw() {
    theCam->begin();
 
    // Draw Particles
-   sys->draw();
-
+   //sys->draw(); // Ship particle
    ofSetColor(ofColor::lightGoldenRodYellow);
-
    ofEnablePointSprites();
    particleTex.bind();
    vbo.draw(GL_POINTS, 0, (int)thrusterEmitter.sys->particles.size());
@@ -260,7 +261,12 @@ void ofApp::draw() {
       cornField.drawWireframe();
    }
    else {
+
+      // Temporarily disable lighting since model doesnt support lighting
+      ofDisableLighting();
       tractor.drawFaces();
+      ofEnableLighting();
+
       cornField.drawFaces();
    }
    ofPopMatrix();
@@ -278,6 +284,7 @@ void ofApp::draw() {
       ofDrawBox(p, w, h, d);
    }
 
+   // Draw ray intersect point
    if (bShowPoint && bPointSelected) {
       ofSetColor(ofColor::blue);
       ofDrawSphere(selectedPoint, 5);
@@ -293,15 +300,6 @@ void ofApp::draw() {
       ofPopMatrix();
    }
 
-   // draw a grid
-   //
-   /*ofPushMatrix();
-   ofRotate(90, 0, 0, 1);
-   ofSetLineWidth(1);
-   ofSetColor(ofColor::dimGrey);
-   ofDrawGridPlane(10.0f, 16, false);
-   ofPopMatrix();*/
-
    theCam->end();
 
    // Draw GUI
@@ -316,11 +314,11 @@ void ofApp::draw() {
    str = "Altitude: " + to_string(altitude);
    ofDrawBitmapString(str, ofGetWindowWidth() - 170, 55);
 
-   str = "Controls: \n UP_ARROW: FORWARD \n DOWN_ARROW: BACK \n";
-   str += " LEFT_ARROW: LEFT \n RIGHT_ARROW : RIGHT \n";
-   str += " SPACE: UP \n CTRL: DOWN \n";
-   str += " F1: Free Cam \n F2: Fixed Cam \n F3: Landing Cam \n F4: Tracking Cam \n";
-   str += " X: Show Cams \n P: Show Point \n R: Reset";
+   str = "Ship Controls \n UP_ARROW: Forward \n DOWN_ARROW: Back \n";
+   str += " LEFT_ARROW: Left \n RIGHT_ARROW : Right \n";
+   str += " SPACE: Up \n CTRL: Down \n R: Reset \n";
+   str += "Toggles \n B: Bounding Box \n H: GUI \n W: Wireframe \n X: Show Cams\n";
+   str += "Camera \n F1: Free Cam \n F2: Fixed Cam \n F3: Landing Cam \n F4: Tracking Cam \n";
    ofDrawBitmapString(str, ofGetWindowWidth() - 170, 85);
 }
 
@@ -362,13 +360,34 @@ void ofApp::checkAltitude() {
    }
 }
 
-//--------------------------------------------------------------
+/*
+   Ship Controls 
+      UP ARROW: Forward
+      DOWN ARROW: Back
+      LEFT ARROW: Left
+      RIGHT ARROW: Right
+      SPACE: Up
+      CTRL: Down
+      R: Reset position
+   Toggles
+      B: Ship Bounding Box
+      H: GUI
+      W: Wireframe
+      O: Octree
+      X: Camera Models
+   Cameras
+      F1: Free Camera
+      F2: Fixed Camera
+      F3: Landing Camera
+      F4: Tracking Camera
+*/
 void ofApp::keyPressed(int key) {
    switch (key) {
    case OF_KEY_UP:
       moveForce->set(ofVec3f(0, 0, -move));
       if (!bThrust) {
          bThrust = true;
+         thrusterEmitter.setVelocity(ofVec3f(0, 0, 100));
          thrusterEmitter.start();
       }
       break;
@@ -376,6 +395,7 @@ void ofApp::keyPressed(int key) {
       moveForce->set(ofVec3f(0, 0, move));
       if (!bThrust) {
          bThrust = true;
+         thrusterEmitter.setVelocity(ofVec3f(0, 0, -100));
          thrusterEmitter.start();
       }
       break;
@@ -383,6 +403,7 @@ void ofApp::keyPressed(int key) {
       moveForce->set(ofVec3f(-move, 0));
       if (!bThrust) {
          bThrust = true;
+         thrusterEmitter.setVelocity(ofVec3f(100, 0, 0));
          thrusterEmitter.start();
       }
       break;
@@ -390,6 +411,7 @@ void ofApp::keyPressed(int key) {
       moveForce->set(ofVec3f(move, 0));
       if (!bThrust) {
          bThrust = true;
+         thrusterEmitter.setVelocity(ofVec3f(-100, 0, 0));
          thrusterEmitter.start();
       }
       break;
@@ -397,13 +419,15 @@ void ofApp::keyPressed(int key) {
       moveForce->set(ofVec3f(0, -move, 0));
       if (!bThrust) {
          bThrust = true;
+         thrusterEmitter.setVelocity(ofVec3f(0, 100, 0));
          thrusterEmitter.start();
       }
       break;
    case ' ':
       moveForce->set(ofVec3f(0, move, 0));
       if (!bThrust) {
-         bThrust = true;
+         bThrust = true; 
+         thrusterEmitter.setVelocity(ofVec3f(0, -100, 0));
          thrusterEmitter.start();
       }
       break;
