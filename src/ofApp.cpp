@@ -219,54 +219,56 @@ void ofApp::setup() {
    gui.add(move.setup("Move Force", 10, 1, 100));
    gui.add(gravity.setup("Gravity", 1, -10, 10));
    gui.add(radius.setup("Particle Radius", 5, 1, 10));
-   bHide = false;
+   bHide = true;
    bShowPoint = false;
+   bPaused = false;
 }
 
 //--------------------------------------------------------------
 void ofApp::update() {
-   
-   grav->set(ofVec3f(0, -gravity, 0));
+   if (!bPaused) {
+      grav->set(ofVec3f(0, -gravity, 0));
 
-   // Play Thrusters
-   if (bThrust && !thrusters.isPlaying()) {
-      thrusters.play();
+      // Play Thrusters
+      if (bThrust && !thrusters.isPlaying()) {
+         thrusters.play();
+      }
+
+      // Update Particles
+      sys->update();
+      thrusterEmitter.update();
+      cornEmitter.update();
+
+      if (bLanded && !cornEmitter.started) {
+         cornEmitter.start();
+      }
+
+      currentPos = sys->particles[0].position;
+
+      // Create Ship Bounding Box
+      ofVec3f min = tractor.getSceneMin() + tractor.getPosition();
+      ofVec3f max = tractor.getSceneMax() + tractor.getPosition();
+      shipBox = Box(Vector3(min.x, min.y, min.z), Vector3(max.x, max.y, max.z));
+
+      // Set tractor's position to the particles position
+      tractor.setPosition(currentPos.x, currentPos.y, currentPos.z);
+      thrusterEmitter.setPosition(currentPos);
+      cornEmitter.setPosition(currentPos);
+
+      // Set fixedCam as a trailing cam
+      fixedCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 25, currentPos.z + 25));
+      fixedCam.lookAt(currentPos);
+
+      // Set trackingCam to follow the tractor from a fixed position
+      trackingCam.lookAt(currentPos);
+
+      // Set landingCam to tractor's position looking down
+      landingCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 30, currentPos.z));
+      landingCam.lookAt(glm::vec3(currentPos.x, currentPos.y - 50, currentPos.z));
+
+      checkCollision();
+      checkAltitude();
    }
-
-   // Update Particles
-   sys->update();
-   thrusterEmitter.update();
-   cornEmitter.update();
-
-   if (bLanded && !cornEmitter.started) {
-      cornEmitter.start();
-   }
-
-   currentPos = sys->particles[0].position;
-
-   // Create Ship Bounding Box
-   ofVec3f min = tractor.getSceneMin() + tractor.getPosition();
-   ofVec3f max = tractor.getSceneMax() + tractor.getPosition();
-   shipBox = Box(Vector3(min.x, min.y, min.z), Vector3(max.x, max.y, max.z));
-
-   // Set tractor's position to the particles position
-   tractor.setPosition(currentPos.x, currentPos.y, currentPos.z);
-   thrusterEmitter.setPosition(currentPos);
-   cornEmitter.setPosition(currentPos);
-
-   // Set fixedCam as a trailing cam
-   fixedCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 25, currentPos.z + 25));
-   fixedCam.lookAt(currentPos);
-
-   // Set trackingCam to follow the tractor from a fixed position
-   trackingCam.lookAt(currentPos);
-
-   // Set landingCam to tractor's position looking down
-   landingCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 20, currentPos.z));
-   landingCam.lookAt(glm::vec3(currentPos.x, currentPos.y - 50, currentPos.z));
-
-   checkCollision();
-   checkAltitude();
 }
 
 //--------------------------------------------------------------
@@ -380,8 +382,8 @@ void ofApp::draw() {
       ofPushMatrix();
       ofMultMatrix(cornField.getModelMatrix());
       oct.drawLeafNodes(oct.root);
-      //oct.draw(oct.root, numLevels, 0, colors);
-      //oct.draw(oct.root, 3, 0, colors);
+      //oct.draw(oct.root, numLevels, 0, colors); // Draw all levels. RIP FPS
+      //oct.draw(oct.root, 3, 0, colors); // Draw first 3 levels
       ofPopMatrix();
    }
 
@@ -504,6 +506,7 @@ void ofApp::checkAltitude() {
       W: Wireframe
       O: Octree
       X: Camera Models
+      P: Pause
    Cameras
       F1: Free Camera
       F2: Fixed Camera
@@ -579,7 +582,7 @@ void ofApp::keyPressed(int key) {
       bShowOct = !bShowOct;
       break;
    case 'p':
-      bShowPoint = !bShowPoint;
+      bPaused = !bPaused;
       break;
    case 'r':
       sys->particles[0].position = glm::vec3(0, 30, 0);

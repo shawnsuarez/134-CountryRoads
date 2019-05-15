@@ -100,4 +100,5 @@ public:
    bool bPointSelected;
    bool bShowPoint;
    ofVec3f selectedPoint;
+   bool bPaused;
 };
