@@ -38,6 +38,19 @@ void ofApp::setup() {
    thrusterEmitter.setLifespanRange(ofVec2f(0.05, 0.1));
    thrusterEmitter.setRate(20);
 
+   radialCorn = new ImpulseRadialForce(1000);
+   radialCorn->setHeight(0.2);
+   cyclicCorn = new CyclicForce(5);
+
+   cornEmitter.sys->addForce(radialCorn);
+   cornEmitter.sys->addForce(cyclicCorn);
+   cornEmitter.setVelocity(ofVec3f(0, 0, 0));
+   cornEmitter.setEmitterType(RadialEmitter);
+   cornEmitter.setGroupSize(200);
+   cornEmitter.setRandomLife(true);
+   cornEmitter.setLifespanRange(ofVec2f(0.1, 0.3));
+   cornEmitter.setRate(20);
+
    // texture loading
    //
    ofDisableArbTex();     // disable rectangular textures
@@ -204,7 +217,7 @@ void ofApp::setup() {
    // GUI
    gui.setup();
    gui.add(move.setup("Move Force", 10, 1, 100));
-   gui.add(gravity.setup("Gravity", 0, -20, 40));
+   gui.add(gravity.setup("Gravity", 1, -10, 10));
    gui.add(radius.setup("Particle Radius", 5, 1, 10));
    bHide = false;
    bShowPoint = false;
@@ -223,6 +236,12 @@ void ofApp::update() {
    // Update Particles
    sys->update();
    thrusterEmitter.update();
+   cornEmitter.update();
+
+   if (bLanded && !cornEmitter.started) {
+      cornEmitter.start();
+   }
+
    currentPos = sys->particles[0].position;
 
    // Create Ship Bounding Box
@@ -233,6 +252,7 @@ void ofApp::update() {
    // Set tractor's position to the particles position
    tractor.setPosition(currentPos.x, currentPos.y, currentPos.z);
    thrusterEmitter.setPosition(currentPos);
+   cornEmitter.setPosition(currentPos);
 
    // Set fixedCam as a trailing cam
    fixedCam.setGlobalPosition(glm::vec3(currentPos.x, currentPos.y + 25, currentPos.z + 25));
@@ -246,7 +266,6 @@ void ofApp::update() {
    landingCam.lookAt(glm::vec3(currentPos.x, currentPos.y - 50, currentPos.z));
 
    checkCollision();
-   checkLanding();
    checkAltitude();
 }
 
@@ -254,7 +273,8 @@ void ofApp::update() {
 void ofApp::draw() {
    ofBackground(ofColor::lightGrey);
    
-   loadVbo();
+   loadVboThrust();
+   loadVboCorn();
 
    ofEnableDepthTest();
    shader.begin();
@@ -265,7 +285,10 @@ void ofApp::draw() {
    ofSetColor(ofColor::lightGoldenRodYellow);
    ofEnablePointSprites();
    particleTex.bind();
-   vbo.draw(GL_POINTS, 0, (int)thrusterEmitter.sys->particles.size());
+   vboThrust.draw(GL_POINTS, 0, (int)thrusterEmitter.sys->particles.size());
+
+   ofSetColor(ofColor::yellow);
+   vboCorn.draw(GL_POINTS, 0, (int)cornEmitter.sys->particles.size());
    particleTex.unbind();
    shader.end();
    ofDisablePointSprites();
@@ -292,7 +315,6 @@ void ofApp::draw() {
       }
    }
    else {
-
       // Temporarily disable lighting since model doesnt support lighting
       ofDisableLighting();
       tractor.drawFaces();
@@ -389,7 +411,16 @@ void ofApp::draw() {
 void ofApp::checkCollision() {
    ofVec3f contactPt = currentPos;
    ofVec3f vel = sys->particles[0].velocity;
-   if (vel.y > 0) return;
+   if (vel.y > 0) { 
+      bCollide = false;
+      bLanded = false;
+
+      // Stop harvesting corn when moving up
+      if (vel.y > 0.5 && cornEmitter.started)
+         cornEmitter.stop();
+
+      return;
+   }
 
    // Get bounding box corners
    Vector3 min = shipBox.parameters[0];
@@ -412,16 +443,31 @@ void ofApp::checkCollision() {
       if (oct.intersect(contactPt, oct.root, node)) {
          cout << "Collision" << endl;
          cout << contactPt << endl;
+         bCollide = true;
+         sys->particles[0].velocity = 
+            ofVec3f(sys->particles[0].velocity.x * 0.5, 
+               -sys->particles[0].velocity.y * 0.5, 
+               sys->particles[0].velocity.z * 0.5);
 
-         sys->particles[0].velocity.y = -sys->particles[0].velocity.y * 0.5;
-         break;
+         // Check if the collision is in a landing area
+         checkLanding();
+         return;
+      }
+      else {
+         bCollide = false;
       }
    }
 }
 
 // Check ship's position with landing areas
 void ofApp::checkLanding() {
-
+   for (int i = 0; i < landings.size(); i++) {
+      if (landings[i].inside(Vector3(currentPos.x, currentPos.y, currentPos.z))) {
+         bLanded = true;
+         return;
+      }
+   }
+   bLanded = false;
 }
 
 // Check ship altitude using ray intersection
@@ -436,7 +482,6 @@ void ofApp::checkAltitude() {
    if (oct.intersect(ray, oct.root, rtn)) {
       bPointSelected = true;
       selectedPoint = ofVec3f(rtn.box.center().x(), rtn.box.center().y(), rtn.box.center().z());
-
       altitude = currentPos.y - selectedPoint.y;
    }
    else {
@@ -694,7 +739,7 @@ void ofApp::initLightingAndMaterials() {
 
 // load vertex buffer in preparation for rendering
 //
-void ofApp::loadVbo() {
+void ofApp::loadVboThrust() {
    if (thrusterEmitter.sys->particles.size() < 1) return;
 
    vector<ofVec3f> sizes;
@@ -706,7 +751,24 @@ void ofApp::loadVbo() {
    // upload the data to the vbo
    //
    int total = (int)points.size();
-   vbo.clear();
-   vbo.setVertexData(&points[0], total, GL_STATIC_DRAW);
-   vbo.setNormalData(&sizes[0], total, GL_STATIC_DRAW);
+   vboThrust.clear();
+   vboThrust.setVertexData(&points[0], total, GL_STATIC_DRAW);
+   vboThrust.setNormalData(&sizes[0], total, GL_STATIC_DRAW);
+}
+
+void ofApp::loadVboCorn() {
+   if (cornEmitter.sys->particles.size() < 1) return;
+
+   vector<ofVec3f> sizes;
+   vector<ofVec3f> points;
+   for (int i = 0; i < cornEmitter.sys->particles.size(); i++) {
+      points.push_back(cornEmitter.sys->particles[i].position);
+      sizes.push_back(ofVec3f(radius));
+   }
+   // upload the data to the vbo
+   //
+   int total = (int)points.size();
+   vboCorn.clear();
+   vboCorn.setVertexData(&points[0], total, GL_STATIC_DRAW);
+   vboCorn.setNormalData(&sizes[0], total, GL_STATIC_DRAW);
 }

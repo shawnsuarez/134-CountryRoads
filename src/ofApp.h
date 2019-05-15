@@ -31,7 +31,8 @@ public:
    void dragEvent(ofDragInfo dragInfo);
    void gotMessage(ofMessage msg);
    void initLightingAndMaterials();
-   void loadVbo();
+   void loadVboThrust();
+   void loadVboCorn();
 
 
    // Particle System
@@ -46,8 +47,12 @@ public:
    CyclicForce *cyclicForce;
 
    ofTexture  particleTex;
-   ofVbo vbo;
+   ofVbo vboThrust, vboCorn;
    ofShader shader;
+
+   ParticleEmitter cornEmitter;
+   ImpulseRadialForce *radialCorn;
+   CyclicForce *cyclicCorn;
 
    // Models
    ofxAssimpModelLoader tractor, cornField, corn;
@@ -58,6 +63,8 @@ public:
    ofVec3f currentPos;
    bool bWireframe;
    bool bBoundingBox;
+   bool bCollide;
+   bool bLanded;
 
    // Landing Areas
    vector<Box> landings;
