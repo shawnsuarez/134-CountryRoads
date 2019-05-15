@@ -50,7 +50,8 @@ public:
    ofShader shader;
 
    // Models
-   ofxAssimpModelLoader tractor, cornField;
+   ofxAssimpModelLoader tractor, cornField, corn;
+   vector<ofxAssimpModelLoader> corns;
    ofMesh cornMesh;
    Box shipBox;
    float altitude;

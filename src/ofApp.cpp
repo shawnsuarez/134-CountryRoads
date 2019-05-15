@@ -79,11 +79,39 @@ void ofApp::setup() {
       ofExit();
    }
 
+   modelPath = "cornStalk/cornStalk.obj";
+   if (corn.loadModel(modelPath)) {
+      corn.setScaleNormalization(false);
+      corn.setPosition(0, 0, 0);
+   }
+   else {
+      ofLogFatalError("Can't load model: " + modelPath);
+      ofExit();
+   }
+
    bWireframe = false;
    bBoundingBox = false;
 
    // Landing Fields
+   Box l1 = Box(Vector3(-172, 16, 134), Vector3(-146, 18, 144));
+   Box l2 = Box(Vector3(110, 19, 91), Vector3(155, 21, 113));
+   Box l3 = Box(Vector3(170, 19, -165), Vector3(180, 21, -145));
+   landings.push_back(l1);
+   landings.push_back(l2);
+   landings.push_back(l3);
 
+   for (int i = 0; i < landings.size(); i++) {
+      Vector3 min = landings[i].parameters[0];
+      Vector3 max = landings[i].parameters[1];
+      corn.setPosition(min.x(), min.y(), min.z());
+      corns.push_back(corn);
+      corn.setPosition(max.x(), min.y(), max.z());
+      corns.push_back(corn);
+      corn.setPosition(min.x(), min.y(), max.z());
+      corns.push_back(corn);
+      corn.setPosition(max.x(), min.y(), min.z());
+      corns.push_back(corn);
+   }
 
    // Octree
    numLevels = 9;
@@ -138,7 +166,7 @@ void ofApp::setup() {
    if (countryRoads.load(soundPath)) {
       countryRoads.setLoop(true);
       countryRoads.setVolume(0.8f);
-      //countryRoads.play();
+      countryRoads.play();
    }
    else {
       ofLogFatalError("Can't load sound: " + soundPath);
@@ -259,6 +287,9 @@ void ofApp::draw() {
    if (bWireframe) {
       tractor.drawWireframe();
       cornField.drawWireframe();
+      for (int i = 0; i < corns.size(); i++) {
+         corns[i].drawWireframe();
+      }
    }
    else {
 
@@ -267,11 +298,16 @@ void ofApp::draw() {
       tractor.drawFaces();
       ofEnableLighting();
 
+      ofEnableAlphaBlending();
       cornField.drawFaces();
+      for (int i = 0; i < corns.size(); i++) {
+         corns[i].drawFaces();
+      }
+      ofDisableAlphaBlending();
    }
    ofPopMatrix();
 
-   // Draw Ship Bounding Box
+   // Draw Bounding Boxes
    if (bBoundingBox) {
       Vector3 min = shipBox.parameters[0];
       Vector3 max = shipBox.parameters[1];
@@ -282,6 +318,33 @@ void ofApp::draw() {
       float h = size.y();
       float d = size.z();
       ofDrawBox(p, w, h, d);
+
+      ofVec3f p1 = ofVec3f(min.x(), min.y(), min.z());
+      ofVec3f p2 = ofVec3f(max.x(), min.y(), max.z());
+      ofVec3f p3 = ofVec3f(min.x(), min.y(), max.z());
+      ofVec3f p4 = ofVec3f(max.x(), min.y(), min.z());
+      ofSetColor(ofColor::red);
+      ofDrawSphere(p1, 0.5);
+      ofSetColor(ofColor::green);
+      ofDrawSphere(p2, 0.5);
+      ofSetColor(ofColor::blue);
+      ofDrawSphere(p3, 0.5);
+      ofSetColor(ofColor::yellow);
+      ofDrawSphere(p4, 0.5);
+      ofSetColor(ofColor::purple);
+
+      for (int i = 0; i < landings.size(); i++) {
+         Vector3 min = landings[i].parameters[0];
+         Vector3 max = landings[i].parameters[1];
+         Vector3 size = max - min;
+         Vector3 center = size / 2 + min;
+         ofVec3f p = ofVec3f(center.x(), center.y(), center.z());
+         float w = size.x();
+         float h = size.y();
+         float d = size.z();
+         ofSetColor(ofColor::lightGoldenRodYellow);
+         ofDrawBox(p, w, h, d);
+      }
    }
 
    // Draw ray intersect point
@@ -294,9 +357,9 @@ void ofApp::draw() {
    if (bShowOct) {
       ofPushMatrix();
       ofMultMatrix(cornField.getModelMatrix());
-      //oct.drawLeafNodes(oct.root);
+      oct.drawLeafNodes(oct.root);
       //oct.draw(oct.root, numLevels, 0, colors);
-      oct.draw(oct.root, 3, 0, colors);
+      //oct.draw(oct.root, 3, 0, colors);
       ofPopMatrix();
    }
 
@@ -328,10 +391,31 @@ void ofApp::checkCollision() {
    ofVec3f vel = sys->particles[0].velocity;
    if (vel.y > 0) return;
 
-   TreeNode node;
-   if (oct.intersect(contactPt, oct.root, node)) {
-      cout << "Collision" << endl;
-      sys->particles[0].velocity.y = -sys->particles[0].velocity.y * 0.5;
+   // Get bounding box corners
+   Vector3 min = shipBox.parameters[0];
+   Vector3 max = shipBox.parameters[1];
+   ofVec3f p1 = ofVec3f(min.x(), min.y(), min.z());
+   ofVec3f p2 = ofVec3f(max.x(), min.y(), max.z());
+   ofVec3f p3 = ofVec3f(min.x(), min.y(), max.z());
+   ofVec3f p4 = ofVec3f(max.x(), min.y(), min.z());
+   vector<ofVec3f> points;
+   points.push_back(p1);
+   points.push_back(p2);
+   points.push_back(p3);
+   points.push_back(p4);
+
+   for (int i = 0; i < points.size(); i++) {
+      contactPt = points[i];
+      TreeNode node;
+
+      // Check point intersection, stop checking other points if there is collision
+      if (oct.intersect(contactPt, oct.root, node)) {
+         cout << "Collision" << endl;
+         cout << contactPt << endl;
+
+         sys->particles[0].velocity.y = -sys->particles[0].velocity.y * 0.5;
+         break;
+      }
    }
 }
 
